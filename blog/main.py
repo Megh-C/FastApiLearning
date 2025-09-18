@@ -1,17 +1,40 @@
 from fastapi import FastAPI
 from . import models,schemas
-from .database import engine
+from .database import engine,SessionLocal
+from sqlalchemy.orm import Session
+from fastapi import Depends
 
-models.Base.metadata.create_all(engine)
 
 app = FastAPI()
 
+models.Base.metadata.create_all(engine)
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 @app.get('/')
 def welcomeUser():
     return('Hello User')
 
-
+#will pass the title and the body as the function parameters and its of type Blog pydantic
 @app.post('/blog')
-def create(request:schemas.Blog):
-    return request
+def create(request:schemas.Blog , db: Session = Depends(get_db)):
+    new_blog = models.Blog(title = request.title, body = request.body)
+    db.add(new_blog)
+    db.commit()
+    db.refresh(new_blog)
+    return new_blog
+
+@app.get('/getAll')
+def get_all(db: Session = Depends(get_db)):
+    blogs = db.query(models.Blog).all()
+    return blogs 
+
+@app.get('/blog/{id}')
+def getBlogById(id:int,db:Session = Depends(get_db)):
+    blog = db.query(models.Blog).filter(models.Blog.id == id).first()
+    return blog
